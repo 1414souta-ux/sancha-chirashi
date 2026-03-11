@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="三軒茶屋・太子堂エリアの5スーパー横断 買い物最適化エージェント">
+<meta name="theme-color" content="#0A0E1A">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<title>🛒 SMART CART — 買い物最適化エージェント</title>
+<!-- APIキー設定ファイル（.gitignore済み・任意） -->
+<script src="config.js" onerror="console.info('config.js not found — set window.GEMINI_API_KEY manually')"></script>
+<style>
+  :root {
+    --bg: #0A0E1A;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: rgba(255,255,255,0.08);
+    --text: #E8EDF5;
+    --text-muted: #6B7C99;
+    --accent: #00D4FF;
+    --accent2: #FF6B35;
+    --accent3: #7FFF6B;
+    --belx: #FF6B6B;
+    --daiei: #FFD93D;
+    --summit: #6BCB77;
+    --seiyu: #4D96FF;
+    --ozeki: #FF9F1C;
+    --sidebar-w: 300px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 56px;
+    background: rgba(10,14,26,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 20px; gap: 16px;
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    white-space: nowrap;
+  }
+  .logo span { font-size: 22px; margin-right: 6px; }
+  .header-area {
+    font-size: 11px; color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+  .store-dots { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    position: relative; cursor: default;
+  }
+  .dot::after {
+    content: attr(data-name);
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    background: var(--surface2); color: var(--text);
+    font-size: 10px; padding: 3px 6px; border-radius: 4px;
+    white-space: nowrap; pointer-events: none;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .dot:hover::after { opacity: 1; }
+
+  /* ── LAYOUT ── */
+  .layout {
+    display: flex;
+    padding-top: 56px;
+    min-height: 100vh;
+  }
+
+  /* ── SIDEBAR ── */
+  aside {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    position: sticky; top: 56px;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+  aside::-webkit-scrollbar { width: 4px; }
+  aside::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .sidebar-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; letter-spacing: 2px;
+    color: var(--text-muted); text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  /* Store list */
+  .store-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 8px;
+    cursor: default; transition: background 0.15s;
+    margin-bottom: 2px;
+  }
+  .store-item:hover { background: var(--surface2); }
+  .store-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .store-info { flex: 1; min-width: 0; }
+  .store-name { font-size: 12px; font-weight: 700; }
+  .store-hours { font-size: 10px; color: var(--text-muted); }
+  .store-score {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* Input area */
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px;
+    padding: 10px 12px;
+    resize: none;
+    outline: none;
+    line-height: 1.6;
+    transition: border-color 0.2s;
+    min-height: 100px;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--text-muted); }
+
+  .btn-analyze {
+    width: 100%; margin-top: 10px;
+    background: linear-gradient(135deg, var(--accent), #0099BB);
+    border: none; border-radius: 8px;
+    color: #000; font-weight: 700;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px; padding: 10px;
+    cursor: pointer; transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .btn-analyze:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,212,255,0.3); }
+  .btn-analyze:active { transform: translateY(0); }
+  .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Quick actions */
+  .quick-actions { display: flex; flex-direction: column; gap: 6px; }
+  .quick-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 12px; padding: 7px 10px;
+    cursor: pointer; text-align: left;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .quick-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,212,255,0.05);
+  }
+
+  /* Flyer section */
+  .flyer-upload {
+    border: 1px dashed var(--border);
+    border-radius: 8px; padding: 14px;
+    text-align: center; cursor: pointer;
+    transition: all 0.2s; color: var(--text-muted);
+    font-size: 12px;
+  }
+  .flyer-upload:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,212,255,0.03);
+  }
+  #flyer-input { display: none; }
+  .flyer-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip {
+    background: rgba(255,107,53,0.15);
+    border: 1px solid rgba(255,107,53,0.3);
+    border-radius: 20px; padding: 3px 10px;
+    font-size: 11px; color: var(--accent2);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .chip-del {
+    cursor: pointer; font-size: 13px; line-height: 1;
+    opacity: 0.6; transition: opacity 0.15s;
+  }
+  .chip-del:hover { opacity: 1; }
+
+  /* ── MAIN ── */
+  main {
+    flex: 1; padding: 24px;
+    display: flex; flex-direction: column; gap: 20px;
+    min-width: 0;
+  }
+
+  /* Score cards */
+  .score-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 1200px) {
+    .score-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .score-grid { grid-template-columns: repeat(2, 1fr); }
+    .layout { flex-direction: column; }
+    aside { width: 100%; min-width: unset; position: static; height: auto; }
+  }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px;
+    position: relative; overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .score-card.winner {
+    border-color: var(--accent3);
+    box-shadow: 0 0 20px rgba(127,255,107,0.12);
+  }
+  .score-card:hover { transform: translateY(-2px); }
+  .score-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .score-store-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .score-store-name { font-size: 11px; font-weight: 700; flex: 1; }
+  .crown { font-size: 14px; }
+  .score-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px; font-weight: 800;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .score-bar-bg {
+    height: 4px; background: rgba(255,255,255,0.08);
+    border-radius: 2px; overflow: hidden;
+  }
+  .score-bar {
+    height: 100%; border-radius: 2px;
+    transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .score-placeholder {
+    text-align: center; color: var(--text-muted);
+    font-size: 11px; padding: 8px 0;
+  }
+
+  /* AI panel / tabs */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    flex: 1;
+    display: flex; flex-direction: column;
+    min-height: 400px;
+  }
+  .tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    padding: 0 16px; gap: 0;
+  }
+  .tab {
+    padding: 12px 16px;
+    font-size: 12px; font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.15s; margin-bottom: -1px;
+    white-space: nowrap;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-content { display: none; padding: 20px; flex: 1; overflow-y: auto; }
+  .tab-content.active { display: block; }
+  .tab-content::-webkit-scrollbar { width: 4px; }
+  .tab-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* AI content */
+  .ai-content { line-height: 1.8; font-size: 14px; }
+  .ai-content h2 {
+    font-size: 18px; font-weight: 700;
+    color: var(--accent); margin: 20px 0 10px;
+    font-family: 'Syne', sans-serif;
+  }
+  .ai-content h3 {
+    font-size: 15px; font-weight: 700;
+    color: var(--accent2); margin: 16px 0 8px;
+  }
+  .ai-content h4 {
+    font-size: 13px; font-weight: 700;
+    color: var(--text-muted); margin: 12px 0 6px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .ai-content strong { color: var(--accent3); }
+  .ai-content em { color: var(--accent); font-style: italic; }
+  .ai-content code {
+    background: rgba(0,212,255,0.1);
+    color: var(--accent);
+    padding: 1px 6px; border-radius: 4px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+  .ai-content pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px;
+    overflow-x: auto; margin: 10px 0;
+  }
+  .ai-content pre code { background: none; padding: 0; }
+  .ai-content ul, .ai-content ol {
+    padding-left: 20px; margin: 8px 0;
+  }
+  .ai-content li { margin-bottom: 4px; }
+  .ai-content hr {
+    border: none; border-top: 1px solid var(--border);
+    margin: 16px 0;
+  }
+  .ai-content p { margin-bottom: 10px; }
+
+  /* Empty / loading states */
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; gap: 12px;
+    color: var(--text-muted); text-align: center;
+    padding: 40px;
+  }
+  .empty-icon { font-size: 48px; opacity: 0.4; }
+  .empty-title { font-size: 16px; font-weight: 700; }
+  .empty-sub { font-size: 13px; line-height: 1.6; }
+
+  .loading-dots {
+    display: inline-flex; gap: 4px; align-items: center;
+  }
+  .loading-dots span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    animation: bounce 1.4s infinite ease-in-out;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  .loading-state {
+    display: flex; align-items: center; gap: 12px;
+    padding: 20px; color: var(--text-muted); font-size: 14px;
+  }
+
+  /* Price table */
+  .price-table-wrap { overflow-x: auto; }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    background: var(--bg);
+    padding: 10px 14px; text-align: left;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 1px;
+    color: var(--text-muted); text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .price-best { color: var(--accent3); font-weight: 700; }
+  .price-worst { color: var(--accent2); }
+  .price-na { color: var(--text-muted); opacity: 0.5; }
+
+  /* Recipe tab */
+  .recipe-content { line-height: 1.8; font-size: 14px; }
+
+  /* Error */
+  .error-msg {
+    background: rgba(255,107,53,0.1);
+    border: 1px solid rgba(255,107,53,0.3);
+    border-radius: 8px; padding: 14px;
+    color: var(--accent2); font-size: 13px;
+    margin-top: 8px;
+  }
+
+  /* API key notice */
+  .api-notice {
+    background: rgba(0,212,255,0.07);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 8px; padding: 10px 12px;
+    font-size: 11px; color: var(--text-muted); line-height: 1.6;
+    margin-bottom: 10px;
+  }
+  .api-notice a { color: var(--accent); }
+
+  /* Shimmer animation for cards */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .shimmer {
+    background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Pulse dot for live indicator */
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent3);
+    animation: pulse 2s infinite;
+    display: inline-block; margin-right: 4px;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* History toggle */
+  .history-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text-muted);
+    font-size: 11px; padding: 4px 10px; cursor: pointer;
+    transition: all 0.15s; margin-top: 8px;
+    width: 100%;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .history-btn:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo"><span>🛒</span>SMART CART</div>
+  <div class="header-area">三軒茶屋・太子堂</div>
+  <div class="store-dots">
+    <div class="dot" style="background:var(--belx)" data-name="ベルクス"></div>
+    <div class="dot" style="background:var(--daiei)" data-name="ダイエー"></div>
+    <div class="dot" style="background:var(--summit)" data-name="サミット"></div>
+    <div class="dot" style="background:var(--seiyu)" data-name="西友"></div>
+    <div class="dot" style="background:var(--ozeki)" data-name="オオゼキ"></div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside>
+
+    <!-- Store list -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">対象店舗</div>
+      <div id="store-list">
+        <div class="store-item">
+          <div class="store-dot" style="background:var(--belx)"></div>
+          <div class="store-info">
+            <div class="store-name">ベルクス 太子堂</div>
+            <div class="store-hours">9:00–22:00 · 安さ重視</div>
+          </div>
+          <div class="store-score" id="score-belx">—</div>
+        </div>
+        <div class="store-item">
+          <div class="store-dot" style="background:var(--daiei)"></div>
+          <div class="store-info">
+            <div class="store-name">ダイエー 三軒茶屋</div>
+            <div class="store-hours">10:00–22:00 · 品揃え豊富</div>
+          </div>
+          <div class="store-score" id="score-daiei">—</div>
+        </div>
+        <div class="store-item">
+          <div class="store-dot" style="background:var(--summit)"></div>
+          <div class="store-info">
+            <div class="store-name">サミット 下馬店</div>
+            <div class="store-hours">9:00–24:00 · PB充実</div>
+          </div>
+          <div class="store-score" id="score-summit">—</div>
+        </div>
+        <div class="store-item">
+          <div class="store-dot" style="background:var(--seiyu)"></div>
+          <div class="store-info">
+            <div class="store-name">西友 三軒茶屋</div>
+            <div class="store-hours">24時間 · EDLP戦略</div>
+          </div>
+          <div class="store-score" id="score-seiyu">—</div>
+        </div>
+        <div class="store-item">
+          <div class="store-dot" style="background:var(--ozeki)"></div>
+          <div class="store-info">
+            <div class="store-name">オオゼキ 三軒茶屋</div>
+            <div class="store-hours">9:00–21:00 · 鮮魚・精肉◎</div>
+          </div>
+          <div class="store-score" id="score-ozeki">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">買い物リスト・質問</div>
+
+      <textarea id="input-text" placeholder="例：鶏もも肉・豆腐・キャベツを買いたい。今週の特売情報も教えて。&#10;&#10;Ctrl+Enter で送信" rows="5"></textarea>
+      <button class="btn-analyze" id="btn-analyze" onclick="analyze()">
+        🔍 AIで分析する
+      </button>
+      <button class="history-btn" onclick="clearHistory()">🗑 会話履歴をリセット</button>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">クイックアクション</div>
+      <div class="quick-actions">
+        <button class="quick-btn" onclick="quickAction('sale')">🏷️ 今週の特売情報を確認</button>
+        <button class="quick-btn" onclick="quickAction('recipe')">🍳 今日のおすすめレシピ</button>
+        <button class="quick-btn" onclick="quickAction('meat')">🥩 肉類の価格比較</button>
+        <button class="quick-btn" onclick="quickAction('vegetable')">🥬 野菜の価格比較</button>
+        <button class="quick-btn" onclick="quickAction('budget')">💰 1,000円の節約献立</button>
+      </div>
+    </div>
+
+    <!-- Flyer -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">チラシ画像解析</div>
+      <div class="flyer-upload" onclick="document.getElementById('flyer-input').click()">
+        <div style="font-size:24px;margin-bottom:4px">📄</div>
+        PNG / JPGをアップロード
+        <div style="font-size:10px;margin-top:4px;opacity:0.6">チラシ画像から特売品を自動抽出</div>
+      </div>
+      <input type="file" id="flyer-input" accept="image/png,image/jpeg" onchange="analyzeFlyer(this)">
+      <div class="flyer-chips" id="flyer-chips"></div>
+    </div>
+
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- Score cards -->
+    <div id="score-section">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div class="sidebar-label" style="margin:0">コスパスコア</div>
+        <div id="score-status" style="font-size:11px;color:var(--text-muted)">分析後に表示されます</div>
+      </div>
+      <div class="score-grid" id="score-grid">
+        <!-- Score cards rendered by JS -->
+        <div class="score-card"><div class="score-placeholder shimmer" style="height:72px;border-radius:8px"></div></div>
+        <div class="score-card"><div class="score-placeholder shimmer" style="height:72px;border-radius:8px"></div></div>
+        <div class="score-card"><div class="score-placeholder shimmer" style="height:72px;border-radius:8px"></div></div>
+        <div class="score-card"><div class="score-placeholder shimmer" style="height:72px;border-radius:8px"></div></div>
+        <div class="score-card"><div class="score-placeholder shimmer" style="height:72px;border-radius:8px"></div></div>
+      </div>
+    </div>
+
+    <!-- Panel with tabs -->
+    <div class="panel">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('analysis', this)">📊 分析結果</div>
+        <div class="tab" onclick="switchTab('prices', this)">💴 価格比較</div>
+        <div class="tab" onclick="switchTab('recipe', this)">🍽️ レシピ提案</div>
+      </div>
+
+      <!-- Analysis tab -->
+      <div class="tab-content active" id="tab-analysis">
+        <div id="ai-content" class="ai-content">
+          <div class="empty-state">
+            <div class="empty-icon">🛒</div>
+            <div class="empty-title">買い物リストを入力してください</div>
+            <div class="empty-sub">食材名や商品名を入力すると、5店舗の価格比較・<br>コスパスコア・おすすめ購入先を提案します。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Price table tab -->
+      <div class="tab-content" id="tab-prices">
+        <div id="price-table-area">
+          <div class="empty-state">
+            <div class="empty-icon">💴</div>
+            <div class="empty-title">価格比較データなし</div>
+            <div class="empty-sub">分析を実行すると商品ごとの<br>店舗別価格テーブルが表示されます。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recipe tab -->
+      <div class="tab-content" id="tab-recipe">
+        <div id="recipe-area">
+          <div class="empty-state">
+            <div class="empty-icon">🍳</div>
+            <div class="empty-title">レシピ提案なし</div>
+            <div class="empty-sub">「今日のレシピ」や予算・食材条件を入力すると<br>AI がレシピと最安購入先を提案します。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ── CONFIG ──
+// APIキーはこのファイルに直接記載するのではなく、
+// GitHubに置く場合はサーバーサイドプロキシ経由を推奨
+// 開発時のみ: 環境変数や config.js から読み込む
+const API_KEY = 'YOUR_GEMINI_API_KEY_HERE';
+const MODEL = 'gemini-1.5-flash';  // 無料枠◎・Vision対応・日本語◎
+const MAX_TOKENS = 1500;
+
+// ── STATE ──
+let conversationHistory = [];
+let flyerData = [];
+let lastScores = null;
+
+// ── STORE CONFIG ──
+const STORES = {
+  belx:   { name: 'ベルクス',  color: 'var(--belx)',   hours: '9:00–22:00' },
+  daiei:  { name: 'ダイエー',  color: 'var(--daiei)',  hours: '10:00–22:00' },
+  summit: { name: 'サミット',  color: 'var(--summit)', hours: '9:00–24:00' },
+  seiyu:  { name: '西友',      color: 'var(--seiyu)',  hours: '24時間' },
+  ozeki:  { name: 'オオゼキ',  color: 'var(--ozeki)',  hours: '9:00–21:00' },
+};
+
+// ── SYSTEM PROMPT ──
+const SYSTEM_PROMPT = `あなたは三軒茶屋・太子堂エリアの買い物最適化AIエージェントです。
+以下の5店舗の情報を熟知しています：
+
+1. ベルクス 太子堂 (belx): 9:00-22:00 / 安さ重視・地域密着型・特売品豊富
+2. ダイエー 三軒茶屋 (daiei): 10:00-22:00 / 品揃え豊富・ポイント還元・フロア型大型店
+3. サミット 下馬店 (summit): 9:00-24:00 / 深夜営業・PB（プライベートブランド）充実
+4. 西友 三軒茶屋 (seiyu): 24時間 / EDLP価格戦略・24時間営業・日用品も豊富
+5. オオゼキ 三軒茶屋店 (ozeki): 9:00-21:00 / 鮮魚・精肉が強み・地域密着・品質重視
+
+## 応答フォーマット
+
+必ずMarkdown形式で回答し、以下のHTMLコメントを含めてください：
+
+1. コスパスコア（必ず含める）:
+<!--SCORES:{"belx":スコア,"daiei":スコア,"summit":スコア,"seiyu":スコア,"ozeki":スコア,"winner":"最高店舗のキー"}-->
+
+2. 価格比較データ（商品が含まれる場合）:
+<!--PRICES:[{"item":"商品名","belx":価格or-1,"daiei":価格or-1,"summit":価格or-1,"seiyu":価格or-1,"ozeki":価格or-1}]-->
+※取り扱いなしは-1、価格は整数（円）
+
+## 回答スタイル
+- 簡潔・実用的に
+- 各店舗の強み・弱みを踏まえた提案
+- 具体的な金額や節約額を提示
+- レシピ提案時は必要食材の購入先も明示
+`;
+
+// ── QUICK ACTIONS ──
+const QUICK_PROMPTS = {
+  sale:      '今週の特売情報を5店舗で比較して。どこがお得か教えて。',
+  recipe:    '今日のおすすめレシピを3つ提案して。各レシピの食材を最安値で買える店も教えて。予算は一人分1,000円以内で。',
+  meat:      '鶏もも肉・豚バラ・牛切り落としの5店舗価格比較をして。コスパ最強はどこ？',
+  vegetable: '白菜・キャベツ・ニンジン・玉ねぎ・ほうれん草の5店舗価格比較をして。',
+  budget:    '1,000円で3〜4人分の夕食を作るなら？食材の購入店込みで教えて。',
+};
+
+function quickAction(key) {
+  const prompt = QUICK_PROMPTS[key];
+  if (!prompt) return;
+  document.getElementById('input-text').value = prompt;
+  analyze();
+  // Handle URL param
+  const url = new URL(window.location);
+  url.searchParams.set('action', key);
+  history.replaceState({}, '', url);
+}
+
+// ── URL PARAM HANDLING ──
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const action = params.get('action');
+  if (action && QUICK_PROMPTS[action]) quickAction(action);
+  renderScoreCards(null);
+});
+
+// ── KEYBOARD SHORTCUT ──
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    analyze();
+  }
+});
+
+// ── MAIN ANALYZE ──
+async function analyze() {
+  const inputEl = document.getElementById('input-text');
+  const text = inputEl.value.trim();
+  if (!text) {
+    inputEl.focus();
+    return;
+  }
+
+  if (!API_KEY) {
+    showError('APIキーが設定されていません。config.js を作成し、window.GEMINI_API_KEY を設定してください。');
+    return;
+  }
+
+  setLoading(true);
+
+  // Build system prompt with flyer data
+  let systemPrompt = SYSTEM_PROMPT;
+  if (flyerData.length > 0) {
+    systemPrompt += `\n\n## 読み込み済みチラシ情報\n${JSON.stringify(flyerData, null, 2)}`;
+  }
+
+  conversationHistory.push({ role: 'user', parts: [{ text }] });
+
+  try {
+    // Gemini API: systemInstruction + contents（会話履歴）
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: conversationHistory,
+          generationConfig: { maxOutputTokens: MAX_TOKENS },
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      handleAPIError(res.status, err);
+      conversationHistory.pop();
+      setLoading(false);
+      return;
+    }
+
+    const data = await res.json();
+    const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!fullText) throw new Error('レスポンスが空です');
+
+    conversationHistory.push({ role: 'model', parts: [{ text: fullText }] });
+
+    // Parse embedded data
+    const scoresMatch = fullText.match(/<!--SCORES:(.*?)-->/s);
+    if (scoresMatch) {
+      try {
+        const scores = JSON.parse(scoresMatch[1]);
+        renderScoreCards(scores);
+        updateSidebarScores(scores);
+        lastScores = scores;
+      } catch(e) { console.warn('Scores parse error', e); }
+    }
+
+    const pricesMatch = fullText.match(/<!--PRICES:(.*?)-->/s);
+    if (pricesMatch) {
+      try {
+        const prices = JSON.parse(pricesMatch[1]);
+        renderPriceTable(prices);
+      } catch(e) { console.warn('Prices parse error', e); }
+    }
+
+    // Clean text (remove embedded comments)
+    const cleanText = fullText
+      .replace(/<!--SCORES:.*?-->/gs, '')
+      .replace(/<!--PRICES:.*?-->/gs, '')
+      .trim();
+
+    // Determine tab
+    const lowerText = text.toLowerCase();
+    const isRecipe = lowerText.includes('レシピ') || lowerText.includes('料理') || lowerText.includes('献立');
+    const targetTab = isRecipe ? 'recipe' : 'analysis';
+
+    if (isRecipe) {
+      document.getElementById('recipe-area').innerHTML = `<div class="ai-content recipe-content">${markdownToHTML(cleanText)}</div>`;
+      switchTabById('recipe');
+    } else {
+      document.getElementById('ai-content').innerHTML = `<div class="ai-content">${markdownToHTML(cleanText)}</div>`;
+      switchTabById('analysis');
+    }
+
+  } catch(e) {
+    showError(`エラーが発生しました: ${e.message}`);
+    conversationHistory.pop();
+  }
+
+  setLoading(false);
+}
+
+// ── FLYER ANALYSIS ──
+async function analyzeFlyer(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+
+  if (!API_KEY) {
+    showError('APIキーが未設定のためチラシ解析できません。');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    const mimeType = file.type;
+
+    setLoading(true);
+    try {
+      // Gemini Vision: inline_data で画像をそのまま渡す
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              role: 'user',
+              parts: [
+                { inline_data: { mime_type: mimeType, data: base64 } },
+                { text: 'このチラシ画像から特売品情報を抽出してください。以下のJSON形式のみで返してください（説明文・コードブロック不要）:\n[{"name":"商品名","price":価格の数値,"store":"店舗名","discount":"割引情報"}]' },
+              ]
+            }],
+            generationConfig: { maxOutputTokens: 800 },
+          }),
+        }
+      );
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '')
+        .replace(/```json|```/g, '').trim();
+
+      const items = JSON.parse(text);
+      flyerData = [...flyerData, ...items];
+      renderFlyerChips();
+
+    } catch(e) {
+      showError(`チラシ解析エラー: ${e.message}`);
+    }
+    setLoading(false);
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderFlyerChips() {
+  const container = document.getElementById('flyer-chips');
+  container.innerHTML = flyerData.map((item, i) => `
+    <div class="chip">
+      🏷️ ${item.name}${item.price ? ' ¥' + item.price : ''}
+      <span class="chip-del" onclick="removeChip(${i})">×</span>
+    </div>
+  `).join('');
+}
+
+function removeChip(i) {
+  flyerData.splice(i, 1);
+  renderFlyerChips();
+}
+
+// ── SCORE CARDS ──
+function renderScoreCards(scores) {
+  const grid = document.getElementById('score-grid');
+  const statusEl = document.getElementById('score-status');
+
+  if (!scores) {
+    grid.innerHTML = Object.entries(STORES).map(([key, store]) => `
+      <div class="score-card">
+        <div class="score-card-header">
+          <div class="score-store-dot" style="background:${store.color}"></div>
+          <div class="score-store-name">${store.name}</div>
+        </div>
+        <div class="score-value" style="color:${store.color};opacity:0.3">—</div>
+        <div class="score-bar-bg"><div class="score-bar" style="width:0;background:${store.color}"></div></div>
+      </div>
+    `).join('');
+    return;
+  }
+
+  statusEl.innerHTML = `<span class="live-dot"></span>最終更新: ${new Date().toLocaleTimeString('ja-JP')}`;
+
+  grid.innerHTML = Object.entries(STORES).map(([key, store]) => {
+    const score = scores[key] || 0;
+    const isWinner = scores.winner === key;
+    return `
+      <div class="score-card ${isWinner ? 'winner' : ''}">
+        <div class="score-card-header">
+          <div class="score-store-dot" style="background:${store.color}"></div>
+          <div class="score-store-name">${store.name}</div>
+          ${isWinner ? '<div class="crown">👑</div>' : ''}
+        </div>
+        <div class="score-value" style="color:${store.color}">${score}</div>
+        <div class="score-bar-bg">
+          <div class="score-bar" style="width:0;background:${store.color}" data-w="${score}"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Animate bars
+  requestAnimationFrame(() => {
+    grid.querySelectorAll('.score-bar').forEach(bar => {
+      bar.style.width = bar.dataset.w + '%';
+    });
+  });
+}
+
+function updateSidebarScores(scores) {
+  Object.keys(STORES).forEach(key => {
+    const el = document.getElementById(`score-${key}`);
+    if (el) el.textContent = scores[key] ? scores[key] + 'pt' : '—';
+  });
+}
+
+// ── PRICE TABLE ──
+function renderPriceTable(prices) {
+  if (!prices || prices.length === 0) return;
+
+  const storeKeys = ['belx', 'daiei', 'summit', 'seiyu', 'ozeki'];
+
+  const header = `
+    <div class="price-table-wrap">
+    <table>
+      <thead><tr>
+        <th>商品</th>
+        ${storeKeys.map(k => `<th style="color:${STORES[k].color.replace('var(--','').replace(')','')}">${STORES[k].name}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+  `;
+
+  const rows = prices.map(row => {
+    const vals = storeKeys.map(k => row[k]);
+    const valid = vals.filter(v => v > 0);
+    const minVal = Math.min(...valid);
+    const maxVal = Math.max(...valid);
+
+    return `<tr>
+      <td style="font-weight:700">${row.item}</td>
+      ${storeKeys.map(k => {
+        const v = row[k];
+        if (!v || v < 0) return `<td class="price-na">—</td>`;
+        const cls = v === minVal ? 'price-best' : v === maxVal ? 'price-worst' : '';
+        return `<td class="${cls}">¥${v.toLocaleString()}</td>`;
+      }).join('')}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('price-table-area').innerHTML = header + rows + '</tbody></table></div>';
+}
+
+// ── MARKDOWN TO HTML ──
+function markdownToHTML(md) {
+  let html = md
+    // Code blocks
+    .replace(/```[\s\S]*?```/g, m => {
+      const code = m.replace(/```\w*\n?/, '').replace(/```$/, '');
+      return `<pre><code>${escapeHTML(code)}</code></pre>`;
+    })
+    // Headings
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+    // Bold / italic
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // HR
+    .replace(/^---$/gm, '<hr>')
+    // Lists
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    // Wrap consecutive <li> in <ul>
+    .replace(/(<li>[\s\S]+?<\/li>)/g, '<ul>$1</ul>')
+    // Paragraphs
+    .split('\n\n')
+    .map(block => {
+      if (block.startsWith('<h') || block.startsWith('<ul') || block.startsWith('<pre') || block.startsWith('<hr')) return block;
+      return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+    })
+    .join('\n');
+
+  return html;
+}
+
+function escapeHTML(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── UI HELPERS ──
+function setLoading(on) {
+  const btn = document.getElementById('btn-analyze');
+  const content = document.getElementById('ai-content');
+  btn.disabled = on;
+  btn.innerHTML = on
+    ? `<span class="loading-dots"><span></span><span></span><span></span></span> 分析中...`
+    : '🔍 AIで分析する';
+  if (on) {
+    content.innerHTML = `<div class="loading-state">
+      <div class="loading-dots"><span></span><span></span><span></span></div>
+      Gemini が分析しています...
+    </div>`;
+  }
+}
+
+function showError(msg) {
+  document.getElementById('ai-content').innerHTML = `<div class="error-msg">⚠️ ${msg}</div>`;
+}
+
+function handleAPIError(status, err) {
+  const msgs = {
+    400: `リクエストエラーです: ${err.error?.message || 'パラメータを確認してください'}`,
+    401: 'APIキーが無効です。Google AI Studio (aistudio.google.com) で有効なキーを確認してください。',
+    429: 'レート制限に達しました（無料枠: 15req/分・1,500req/日）。しばらく待ってから再試行してください。',
+    503: 'Geminiサーバーが過負荷状態です。しばらく待ってから再試行してください。',
+  };
+  showError(msgs[status] || `API エラー (${status}): ${err.error?.message || '不明なエラー'}`);
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+function switchTabById(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  // Find corresponding tab button
+  const tabs = document.querySelectorAll('.tab');
+  const map = { analysis: 0, prices: 1, recipe: 2 };
+  if (tabs[map[name]]) tabs[map[name]].classList.add('active');
+}
+
+function clearHistory() {
+  conversationHistory = [];
+  document.getElementById('ai-content').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">🔄</div>
+      <div class="empty-title">会話履歴をリセットしました</div>
+      <div class="empty-sub">新しい質問を入力してください。</div>
+    </div>`;
+}
+
+// ── SERVICE WORKER ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW registration failed:', e));
+}
+</script>
+</body>
+</html>
